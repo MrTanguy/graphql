@@ -145,44 +145,66 @@ const resolver = {
             throw new Error("Internal server error");
         }
     },
-    editors: async ({ page }) => {
+    editors: async ({ page = 1 }) => {
         try {
-            const limit = 15; 
-
-            const sql = `SELECT * FROM editor LIMIT ?`;
-            const [rows] = await pool.execute(sql, [limit]);
-
+            const limit = 15;
+            const offset = (page - 1) * limit;
+    
+            const sql = `
+                SELECT 
+                    editor.id,
+                    editor.name,
+                    GROUP_CONCAT(DISTINCT game.id) as gameIds,
+                    GROUP_CONCAT(DISTINCT game.name) as gameNames
+                FROM editor
+                LEFT JOIN gameEditor ON editor.id = gameEditor.editorId
+                LEFT JOIN game ON gameEditor.gameId = game.id
+                GROUP BY editor.id
+                LIMIT ? OFFSET ?
+            `;
+    
+            const [rows] = await pool.execute(sql, [limit, offset]);
+    
             const countSql = `SELECT COUNT(*) as count FROM editor`;
             const [countRows] = await pool.execute(countSql);
             const totalCount = countRows[0].count;
-
+    
             const totalPages = Math.ceil(totalCount / limit);
             const nextPage = page < totalPages ? page + 1 : null;
             const previousPage = page > 1 ? page - 1 : null;
-
+    
+            const results = rows.map((editor) => {
+                const gameIds = editor.gameIds ? editor.gameIds.split(',') : [];
+                const gameNames = editor.gameNames ? editor.gameNames.split(',') : [];
+    
+                const games = gameIds.map((id, index) => ({
+                    id: id,
+                    name: gameNames[index],
+                }));
+    
+                return {
+                    id: editor.id,
+                    name: editor.name,
+                    games: games,
+                };
+            });
+    
             return {
-            infos: {
-                count: totalCount,
-                pages: totalPages,
-                nextPage: nextPage,
-                previousPage: previousPage,
-            },
-            results: rows,
+                infos: {
+                    count: totalCount,
+                    pages: totalPages,
+                    nextPage: nextPage,
+                    previousPage: previousPage,
+                },
+                results: results,
             };
         } catch (error) {
-          console.error("Error fetching games:", error);
-          throw new Error("Internal server error");
-        }
-    },
-    editor: async ({ id }) => {
-        try {
-            const [rows] = await pool.execute('SELECT * FROM editor WHERE id = ?', [id]);
-
-            return rows[0]; 
-        } catch (error) {
-            console.error("Error fetching editor:", error);
+            console.error("Error fetching editors:", error);
             throw new Error("Internal server error");
         }
+    },    
+    editor: async ({ id }) => {
+
     },
     studios: async ({ page }) => {
         try {
