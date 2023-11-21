@@ -51,23 +51,20 @@ const resolver = {
             const [rows] = await pool.execute(sql, [...params, limit, (page - 1) * limit]);
 
             const results = rows.map((game) => {
-                // Traitement des genres
-                const formattedGenres = game.genres ? game.genres.split(',') : [];
-            
-                // Traitement des éditeurs
+
+                const formattedGenres = game.genres ? game.genres.split(',') : [];   
+
                 const formattedEditors = game.editors ? game.editors.split(',') : [];
-            
-                // Mapping pour créer un tableau d'objets
                 const editorsArray = formattedEditors.map((value, i) => {
-                    const editorName = value.trim(); // Assurez-vous que le nom de l'éditeur n'est pas nul
+                    const editorName = value.trim(); 
                     const editorId = game.editorsId.split(',')[i];
                     return { id: editorId, name: editorName };
                 });
             
                 return {
                     ...game,
-                    genres: formattedGenres, // Assurez-vous que "genres" est un tableau
-                    editors: editorsArray,  // Assurez-vous que "editors" est un tableau
+                    genres: formattedGenres,
+                    editors: editorsArray, 
                 };
             });
               
@@ -96,9 +93,53 @@ const resolver = {
     },
     game: async ({ id }) => {
         try {
-            const [rows] = await pool.execute('SELECT * FROM game WHERE id = ?', [id]);
+            const sql = `
+            SELECT 
+                game.*,
+                GROUP_CONCAT(DISTINCT genre.name) as genres,
+                GROUP_CONCAT(DISTINCT editor.name) as editors,
+                GROUP_CONCAT(DISTINCT editor.id) as editorsId,
+                GROUP_CONCAT(DISTINCT studio.name) as studios,
+                GROUP_CONCAT(DISTINCT studio.id) as studiosId,
+                GROUP_CONCAT(DISTINCT platform.name) as platforms
+            FROM game
+            LEFT JOIN gameGenre ON game.id = gameGenre.gameId
+            LEFT JOIN genre ON gameGenre.genreId = genre.id
+            LEFT JOIN gameEditor ON game.id = gameEditor.gameId
+            LEFT JOIN editor ON gameEditor.editorId = editor.id
+            LEFT JOIN gameStudio ON game.id = gameStudio.gameId
+            LEFT JOIN studio ON gameStudio.studioId = studio.id
+            LEFT JOIN gamePlatform ON game.id = gamePlatform.gameId
+            LEFT JOIN platform ON gamePlatform.platformId = platform.id
+            WHERE game.id = ?            
+            `
 
-            return rows[0]; 
+            const [rows] = await pool.execute(sql, [id]);
+
+            const formattedEditors = rows[0].editors ? rows[0].editors.split(',') : [];
+            const editorsArray = formattedEditors.map((value, i) => {
+                const editorName = value.trim();
+                const editorId = rows[0].editorsId ? rows[0].editorsId.split(',')[i] : "";
+                return { id: editorId, name: editorName };
+            });
+
+            const formattedStudios = rows[0].studios ? rows[0].studios.split(',') : [];
+            const studiosArray = formattedStudios.map((value, i) => {
+                const studioName = value.trim();
+                const studioId = rows[0].studiosId ? rows[0].studiosId.split(',')[i]: "";
+                return { id: studioId, name: studioName };
+            });
+
+            return {
+                id: rows[0].id,
+                name: rows[0].name,
+                publicationDate: rows[0].publicationDate,
+                genres: rows[0].genres ? rows[0].genres.split(',') : [],
+                editors: editorsArray,
+                studios: studiosArray,
+                platform: rows[0].platforms ? rows[0].platforms.split(',') : []
+            }
+
         } catch (error) {
             console.error("Error fetching game:", error);
             throw new Error("Internal server error");
