@@ -11,6 +11,7 @@ const pool = mysql.createPool({
 const resolver = {
     games: async ({ page = 1, genre, platform, studio }) => {
         try {
+            // Gestion des filtres
             let whereClause = '';
             const params = [];
 
@@ -31,15 +32,46 @@ const resolver = {
 
             const limit = 15;
 
-            const sql = `SELECT * FROM game WHERE 1${whereClause} LIMIT ? OFFSET ?`;
+            const sql = `
+            SELECT 
+                game.*, 
+                GROUP_CONCAT(DISTINCT genre.name) as genres,
+                GROUP_CONCAT(DISTINCT editor.name) as editors,
+                GROUP_CONCAT(DISTINCT editor.id) as editorsId
+            FROM game
+            LEFT JOIN gameGenre ON game.id = gameGenre.gameId
+            LEFT JOIN genre ON gameGenre.genreId = genre.id
+            LEFT JOIN gameEditor ON game.id = gameEditor.gameId
+            LEFT JOIN editor ON gameEditor.editorId = editor.id
+            WHERE 1 ${whereClause}
+            GROUP BY game.id
+            LIMIT ? OFFSET ?
+            `;
+
             const [rows] = await pool.execute(sql, [...params, limit, (page - 1) * limit]);
 
             const results = rows.map((game) => {
+                // Traitement des genres
+                const formattedGenres = game.genres ? game.genres.split(',') : [];
+            
+                // Traitement des éditeurs
+                const formattedEditors = game.editors ? game.editors.split(',') : [];
+            
+                // Mapping pour créer un tableau d'objets
+                const editorsArray = formattedEditors.map((value, i) => {
+                    const editorName = value.trim(); // Assurez-vous que le nom de l'éditeur n'est pas nul
+                    const editorId = game.editorsId.split(',')[i];
+                    return { id: editorId, name: editorName };
+                });
+            
                 return {
                     ...game,
+                    genres: formattedGenres, // Assurez-vous que "genres" est un tableau
+                    editors: editorsArray,  // Assurez-vous que "editors" est un tableau
                 };
             });
-
+              
+            // Gestion de la partie infos
             const countSql = `SELECT COUNT(*) as count FROM game WHERE 1 ${whereClause}`;
             const [countRows] = await pool.execute(countSql, params);
             const totalCount = countRows[0].count;
@@ -49,13 +81,13 @@ const resolver = {
             const previousPage = page > 1 ? page - 1 : null;
 
             return {
-            infos: {
-                count: totalCount,
-                pages: totalPages,
-                nextPage: nextPage,
-                previousPage: previousPage,
-            },
-            results: results
+                infos: {
+                    count: totalCount,
+                    pages: totalPages,
+                    nextPage: nextPage,
+                    previousPage: previousPage,
+                },
+                results: results
             };
         } catch (error) {
           console.error("Error fetching games:", error);
