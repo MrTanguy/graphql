@@ -289,11 +289,35 @@ const resolver = {
     },
     studio: async ({ id }) => {
         try {
-            const [rows] = await pool.execute('SELECT * FROM studio WHERE id = ?', [id]);
-
-            return rows[0]; 
+            const sql = `
+                SELECT 
+                studio.id,
+                studio.name,
+                GROUP_CONCAT(DISTINCT game.name) as gameNames,
+                GROUP_CONCAT(DISTINCT game.id) as gameIds
+                FROM studio
+                LEFT JOIN gameStudio ON studio.id = gameStudio.studioId
+                LEFT JOIN game ON gameStudio.gameId = game.id
+                WHERE studio.id = ?
+            `;
+            const [rows] = await pool.execute(sql, [id]);
+        
+            if (rows.length === 0) {
+                throw new Error(`Editor with id ${id} not found`);
+            }
+    
+            const games = rows[0].gameNames ? rows[0].gameNames.split(',').map((name, i) => ({
+                id: rows[0].gameIds.split(',')[i],
+                name: name.trim(),
+            })) : [];
+        
+            return {
+                id: rows[0].id,
+                name: rows[0].name,
+                games: games,
+            };
         } catch (error) {
-            console.error("Error fetching studio:", error);
+            console.error("Error fetching editor:", error);
             throw new Error("Internal server error");
         }
     },
