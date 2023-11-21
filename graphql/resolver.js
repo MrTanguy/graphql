@@ -9,40 +9,41 @@ const pool = mysql.createPool({
 });
 
 const resolver = {
-    games: async ({ page, genre, platform, studio }) => {
+    games: async ({ page = 1, genre, platform, studio }) => {
         try {
-            // Construire la clause WHERE en fonction des paramètres fournis
             let whereClause = '';
             const params = [];
 
             if (genre) {
-            whereClause += ' AND genre = ?';
-            params.push(genre);
+                whereClause += ' AND game.id IN (SELECT gameId FROM gameGenre INNER JOIN genre ON gameGenre.genreId = genre.id WHERE genre.name LIKE ?)';
+                params.push(`%${genre}%`);
             }
 
             if (platform) {
-            whereClause += ' AND platform = ?';
-            params.push(platform);
+                whereClause += ' AND game.id IN (SELECT gameId FROM gamePlatform INNER JOIN platform ON gamePlatform.platformId = platform.id WHERE platform.name LIKE ?)';
+                params.push(`%${platform}%`);
             }
 
             if (studio) {
-            whereClause += ' AND studio = ?';
-            params.push(studio);
+                whereClause += ' AND game.id IN (SELECT gameId FROM gameStudio INNER JOIN studio ON gameStudio.studioId = studio.id WHERE studio.name LIKE ?)';
+                params.push(`%${studio}%`);
             }
 
-            // Calculer les limites de pagination
-            const limit = 15; // Nombre d'éléments par page
+            const limit = 15;
 
-            // Requête SQL pour récupérer les jeux avec pagination et filtres
-            const sql = `SELECT * FROM game WHERE 1 ${whereClause} LIMIT ?`;
-            const [rows] = await pool.execute(sql, [...params, limit]);
+            const sql = `SELECT * FROM game WHERE 1${whereClause} LIMIT ? OFFSET ?`;
+            const [rows] = await pool.execute(sql, [...params, limit, (page - 1) * limit]);
 
-            // Requête pour obtenir le nombre total de jeux
+            const results = rows.map((game) => {
+                return {
+                    ...game,
+                };
+            });
+
             const countSql = `SELECT COUNT(*) as count FROM game WHERE 1 ${whereClause}`;
             const [countRows] = await pool.execute(countSql, params);
             const totalCount = countRows[0].count;
 
-            // Calculer les informations de pagination
             const totalPages = Math.ceil(totalCount / limit);
             const nextPage = page < totalPages ? page + 1 : null;
             const previousPage = page > 1 ? page - 1 : null;
@@ -54,7 +55,7 @@ const resolver = {
                 nextPage: nextPage,
                 previousPage: previousPage,
             },
-            results: rows,
+            results: results
             };
         } catch (error) {
           console.error("Error fetching games:", error);
@@ -112,7 +113,7 @@ const resolver = {
     },
     studios: async ({ page }) => {
         try {
-            const limit = 1; 
+            const limit = 15; 
 
             const sql = `SELECT * FROM studio LIMIT ?`;
             const [rows] = await pool.execute(sql, [limit]);
