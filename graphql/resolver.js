@@ -237,38 +237,54 @@ const resolver = {
             throw new Error("Internal server error");
         }
     },
-
-
-
-
-
-    studios: async ({ page }) => {
+    studios: async ({ page = 1 }) => {
         try {
-            const limit = 15; 
-
-            const sql = `SELECT * FROM studio LIMIT ?`;
-            const [rows] = await pool.execute(sql, [limit]);
-
+            const limit = 15;
+            const offset = (page - 1) * limit;
+    
+            const sql = `
+                SELECT 
+                    studio.id,
+                    studio.name,
+                    GROUP_CONCAT(DISTINCT game.id) as gameIds,
+                    GROUP_CONCAT(DISTINCT game.name) as gameNames
+                FROM studio
+                LEFT JOIN gameStudio ON studio.id = gameStudio.studioId
+                LEFT JOIN game ON gameStudio.gameId = game.id
+                GROUP BY studio.id
+                LIMIT ? OFFSET ?
+            `;
+            const [rows] = await pool.execute(sql, [limit, offset]);
+    
             const countSql = `SELECT COUNT(*) as count FROM studio`;
             const [countRows] = await pool.execute(countSql);
             const totalCount = countRows[0].count;
-
+    
             const totalPages = Math.ceil(totalCount / limit);
             const nextPage = page < totalPages ? page + 1 : null;
             const previousPage = page > 1 ? page - 1 : null;
-
+    
+            const formattedResults = rows.map((studio) => ({
+                id: studio.id,
+                name: studio.name,
+                games: studio.gameIds ? studio.gameIds.split(',').map((gameId, i) => ({
+                    id: gameId.trim(),
+                    name: studio.gameNames.split(',')[i].trim(),
+                })) : [],
+            }));
+    
             return {
-            infos: {
-                count: totalCount,
-                pages: totalPages,
-                nextPage: nextPage,
-                previousPage: previousPage,
-            },
-            results: rows,
+                infos: {
+                    count: totalCount,
+                    pages: totalPages,
+                    nextPage: nextPage,
+                    previousPage: previousPage,
+                },
+                results: formattedResults,
             };
         } catch (error) {
-          console.error("Error fetching games:", error);
-          throw new Error("Internal server error");
+            console.error("Error fetching studios:", error);
+            throw new Error("Internal server error");
         }
     },
     studio: async ({ id }) => {
