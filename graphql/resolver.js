@@ -33,7 +33,9 @@ const resolver = {
                 game.*, 
                 GROUP_CONCAT(DISTINCT genre.name) as genres,
                 GROUP_CONCAT(DISTINCT editor.name) as editors,
-                GROUP_CONCAT(DISTINCT editor.id) as editorsId
+                GROUP_CONCAT(DISTINCT editor.id) as editorsId,
+                GROUP_CONCAT(DISTINCT studio.name) as studios,
+                GROUP_CONCAT(DISTINCT studio.id) as studiosId
             FROM game
             LEFT JOIN gameGenre ON game.id = gameGenre.gameId
             LEFT JOIN genre ON gameGenre.genreId = genre.id
@@ -57,11 +59,19 @@ const resolver = {
                     const editorId = game.editorsId.split(',')[i];
                     return { id: editorId, name: editorName };
                 });
+
+                const formattedStudios = game.studios ? game.studios.split(',') : [];
+                const studiosArray = formattedStudios.map((value, i) => {
+                    const studioName = value.trim(); 
+                    const studioId = game.studiosId.split(',')[i];
+                    return { id: studioId, name: studioName };
+                }); 
             
                 return {
                     ...game,
                     genres: formattedGenres,
                     editors: editorsArray, 
+                    studios: studiosArray
                 };
             });
               
