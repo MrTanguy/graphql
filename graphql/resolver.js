@@ -39,6 +39,8 @@ const resolver = {
             LEFT JOIN genre ON gameGenre.genreId = genre.id
             LEFT JOIN gameEditor ON game.id = gameEditor.gameId
             LEFT JOIN editor ON gameEditor.editorId = editor.id
+            LEFT JOIN gameStudio ON game.id = gameStudio.gameId
+            LEFT JOIN studio ON gameStudio.studioId = studio.id
             WHERE 1 ${whereClause}
             GROUP BY game.id
             LIMIT ${limit} OFFSET ${(page - 1) * limit}

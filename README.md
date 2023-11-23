@@ -127,6 +127,8 @@ Utiliser la branch dev `git checkout dev`
 
 Lancer la commande `docker-compose up`
 
+Bien attendre quelques secondes que le container est le temps de se monter
+
 Se rendre sur `http://localhost:4000/graphql` pour tester.
 
 PS : Un nouveau container devrait apparaître dans Docker Desktop
