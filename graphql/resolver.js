@@ -2,9 +2,9 @@ const mysql = require("mysql2/promise");
 require('dotenv').config();
 
 const pool = mysql.createPool({
-    host: process.env.MYSQL_HOST,
-    user: process.env.MYSQL_USER,
-    password: process.env.MYSQL_PWD,
+    host: process.env.MYSQL_HOST || "host.docker.internal",
+    user: process.env.MYSQL_USER || "mysql",
+    password: process.env.MYSQL_PWD || "Password123",
     database: 'graphql'
 });
 
@@ -13,21 +13,17 @@ const resolver = {
         try {
             // Gestion des filtres
             let whereClause = '';
-            const params = [];
 
             if (genre) {
-                whereClause += ' AND game.id IN (SELECT gameId FROM gameGenre INNER JOIN genre ON gameGenre.genreId = genre.id WHERE genre.name LIKE ?)';
-                params.push(`%${genre}%`);
+                whereClause += ` AND game.id IN (SELECT gameId FROM gameGenre INNER JOIN genre ON gameGenre.genreId = genre.id WHERE genre.name LIKE %${genre}%)`;
             }
 
             if (platform) {
-                whereClause += ' AND game.id IN (SELECT gameId FROM gamePlatform INNER JOIN platform ON gamePlatform.platformId = platform.id WHERE platform.name LIKE ?)';
-                params.push(`%${platform}%`);
+                whereClause += ` AND game.id IN (SELECT gameId FROM gamePlatform INNER JOIN platform ON gamePlatform.platformId = platform.id WHERE platform.name LIKE %${platform}%)`;
             }
 
             if (studio) {
-                whereClause += ' AND game.id IN (SELECT gameId FROM gameStudio INNER JOIN studio ON gameStudio.studioId = studio.id WHERE studio.name LIKE ?)';
-                params.push(`%${studio}%`);
+                whereClause += ` AND game.id IN (SELECT gameId FROM gameStudio INNER JOIN studio ON gameStudio.studioId = studio.id WHERE studio.name LIKE %${studio}%)`;
             }
 
             const limit = 15;
@@ -45,10 +41,9 @@ const resolver = {
             LEFT JOIN editor ON gameEditor.editorId = editor.id
             WHERE 1 ${whereClause}
             GROUP BY game.id
-            LIMIT ? OFFSET ?
+            LIMIT ${limit} OFFSET ${(page - 1) * limit}
             `;
-
-            const [rows] = await pool.execute(sql, [...params, limit, (page - 1) * limit]);
+            const [rows] = await pool.execute(sql);
 
             const results = rows.map((game) => {
 
@@ -70,7 +65,7 @@ const resolver = {
               
             // Gestion de la partie infos
             const countSql = `SELECT COUNT(*) as count FROM game WHERE 1 ${whereClause}`;
-            const [countRows] = await pool.execute(countSql, params);
+            const [countRows] = await pool.execute(countSql);
             const totalCount = countRows[0].count;
 
             const totalPages = Math.ceil(totalCount / limit);
@@ -111,10 +106,10 @@ const resolver = {
             LEFT JOIN studio ON gameStudio.studioId = studio.id
             LEFT JOIN gamePlatform ON game.id = gamePlatform.gameId
             LEFT JOIN platform ON gamePlatform.platformId = platform.id
-            WHERE game.id = ?            
+            WHERE game.id = ${id}            
             `
 
-            const [rows] = await pool.execute(sql, [id]);
+            const [rows] = await pool.execute(sql);
 
             const formattedEditors = rows[0].editors ? rows[0].editors.split(',') : [];
             const editorsArray = formattedEditors.map((value, i) => {
@@ -160,10 +155,10 @@ const resolver = {
                 LEFT JOIN gameEditor ON editor.id = gameEditor.editorId
                 LEFT JOIN game ON gameEditor.gameId = game.id
                 GROUP BY editor.id
-                LIMIT ? OFFSET ?
+                LIMIT ${limit} OFFSET ${offset}
             `;
     
-            const [rows] = await pool.execute(sql, [limit, offset]);
+            const [rows] = await pool.execute(sql);
     
             const countSql = `SELECT COUNT(*) as count FROM editor`;
             const [countRows] = await pool.execute(countSql);
@@ -214,9 +209,9 @@ const resolver = {
                 FROM editor
                 LEFT JOIN gameEditor ON editor.id = gameEditor.editorId
                 LEFT JOIN game ON gameEditor.gameId = game.id
-                WHERE editor.id = ?
+                WHERE editor.id = ${id}
             `;
-            const [rows] = await pool.execute(sql, [id]);
+            const [rows] = await pool.execute(sql);
         
             if (rows.length === 0) {
                 throw new Error(`Editor with id ${id} not found`);
@@ -252,9 +247,9 @@ const resolver = {
                 LEFT JOIN gameStudio ON studio.id = gameStudio.studioId
                 LEFT JOIN game ON gameStudio.gameId = game.id
                 GROUP BY studio.id
-                LIMIT ? OFFSET ?
+                LIMIT ${limit} OFFSET ${offset}
             `;
-            const [rows] = await pool.execute(sql, [limit, offset]);
+            const [rows] = await pool.execute(sql);
     
             const countSql = `SELECT COUNT(*) as count FROM studio`;
             const [countRows] = await pool.execute(countSql);
@@ -298,9 +293,9 @@ const resolver = {
                 FROM studio
                 LEFT JOIN gameStudio ON studio.id = gameStudio.studioId
                 LEFT JOIN game ON gameStudio.gameId = game.id
-                WHERE studio.id = ?
+                WHERE studio.id = ${id}
             `;
-            const [rows] = await pool.execute(sql, [id]);
+            const [rows] = await pool.execute(sql);
         
             if (rows.length === 0) {
                 throw new Error(`Editor with id ${id} not found`);
